@@ -15,11 +15,13 @@ class Compra extends Model
     protected $fillable = [
         'data',
         'pessoa_id',
+        'total',
         'observacoes',
         'user_id',
     ];
 
-    // O total e' somado a partir dos itens, nunca enviado pelo cliente.
+    // O total esta no fillable para o CompraService o gravar, mas e'
+    // sempre somado a partir dos itens — nunca enviado pelo cliente.
 
     protected function casts(): array
     {

@@ -20,21 +20,22 @@ class LancamentoCaixa extends Model
         'categoria',
         'descricao',
         'valor',
+        'saldo_apos',
         'pessoa_id',
         'origem_tipo',
         'origem_id',
         'user_id',
     ];
 
-    // saldo_apos fica fora do fillable: e' calculado pelo servico de caixa,
-    // nunca enviado pelo cliente da API.
+    // saldo_apos esta no fillable para o CaixaService o gravar via
+    // create(). Nunca vem do cliente da API — e' sempre calculado.
 
     protected function casts(): array
     {
         return [
             'data' => 'date',
             'tipo' => TipoLancamento::class,
-            'categoria' => Categorialancamento::class,
+            'categoria' => CategoriaLancamento::class,
             'valor' => 'decimal:2',
             'saldo_apos' => 'decimal:2',
         ];

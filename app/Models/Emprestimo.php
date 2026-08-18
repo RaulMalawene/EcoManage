@@ -19,11 +19,17 @@ class Emprestimo extends Model
         'data',
         'valor_principal',
         'juro_valor',
+        'valor_total',
+        'saldo_devedor',
         'data_vencimento',
         'motivo',
         'tipo',
+        'estado',
         'user_id',
     ];
+
+    // valor_total, saldo_devedor e estado estao no fillable para o
+    // EmprestimoService os gravar. Nunca vêm do cliente da API.
 
     // valor_total, saldo_devedor e estado sao calculados pelo servico.
 

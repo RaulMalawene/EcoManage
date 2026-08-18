@@ -38,7 +38,7 @@ class CaixaService
             $tipo, $categoria, $valor, $descricao, $userId, $data, $pessoaId, $origemTipo, $origemId
         ) {
             $saldoAnterior = $this->saldoActual();
-            $saldoApos = $saldoAnterior + ($valor * $tipo->sinal());
+            $saldoApos = round($saldoAnterior + ($valor * $tipo->sinal()), 2);
 
             return LancamentoCaixa::create([
                 'data' => $data ?? now()->toDateString(),
@@ -46,7 +46,7 @@ class CaixaService
                 'categoria' => $categoria,
                 'descricao' => $descricao,
                 'valor' => round($valor, 2),
-                'saldo_apos' => round($saldoApos, 2),
+                'saldo_apos' => $saldoApos,
                 'pessoa_id' => $pessoaId,
                 'origem_tipo' => $origemTipo,
                 'origem_id' => $origemId,
@@ -55,12 +55,20 @@ class CaixaService
         });
     }
 
-    /** Saldo de caixa neste momento: o saldo_apos do ultimo lancamento. */
+    /**
+     * Saldo de caixa neste momento.
+     *
+     * Soma directamente as entradas menos as saidas, em vez de ler o
+     * saldo_apos do ultimo lancamento. E' mais robusto: o saldo_apos e'
+     * um valor de leitura rapida que pode ficar desactualizado, mas a
+     * soma dos movimentos e' sempre a verdade.
+     */
     public function saldoActual(): float
     {
-        $ultimo = LancamentoCaixa::cronologico()->get()->last();
+        $entradas = (float) LancamentoCaixa::entradas()->sum('valor');
+        $saidas = (float) LancamentoCaixa::saidas()->sum('valor');
 
-        return $ultimo ? (float) $ultimo->saldo_apos : 0.0;
+        return round($entradas - $saidas, 2);
     }
 
     /**

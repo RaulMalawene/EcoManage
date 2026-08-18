@@ -17,12 +17,19 @@ class Pagamento extends Model
         'emprestimo_id',
         'data',
         'valor',
+        'valor_juro',
+        'valor_principal',
         'forma',
         'material_id',
         'quantidade_kg',
         'user_id',
     ];
 
+    // valor_juro e valor_principal estao no fillable para o servico os
+    // gravar. O cliente da API so envia o valor total; a reparticao
+    // e' feita pelo servico.
+
+    // valor_juro e valor_principal sao repartidos pelo servico.
     // valor_juro e valor_principal sao repartidos pelo servico.
 
     protected function casts(): array
@@ -33,7 +40,7 @@ class Pagamento extends Model
             'valor_juro' => 'decimal:2',
             'valor_principal' => 'decimal:2',
             'quantidade_kg' => 'decimal:3',
-            'forma' => Formapagamento::class,
+            'forma' => FormaPagamento::class,
         ];
     }
 

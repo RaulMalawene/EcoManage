@@ -15,13 +15,18 @@ class Venda extends Model
     protected $fillable = [
         'data',
         'pessoa_id',
+        'total',
+        'custo_total',
+        'lucro',
         'pago',
         'data_recebimento',
         'observacoes',
         'user_id',
     ];
 
-    // total, custo_total e lucro sao calculados a partir dos itens.
+    // total, custo_total e lucro estao no fillable para o VendaService
+    // os gravar, mas sao sempre calculados a partir dos itens — nunca
+    // enviados pelo cliente da API.
 
     protected function casts(): array
     {
