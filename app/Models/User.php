@@ -2,31 +2,68 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
+use App\Enums\PerfilUtilizador;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
+    protected $fillable = [
+        'name',
+        'username',
+        'email',
+        'password',
+        'perfil',
+        'activo',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'perfil' => PerfilUtilizador::class,
+            'activo' => 'boolean',
         ];
+    }
+
+    // --- Permissoes (RF-02) ---------------------------------------------
+
+    public function ehAdministrador(): bool
+    {
+        return $this->perfil->podeAdministrar();
+    }
+
+    public function podeEscrever(): bool
+    {
+        return $this->activo && $this->perfil->podeEscrever();
+    }
+
+    // --- Relacoes de auditoria (RF-04) ----------------------------------
+
+    public function lancamentosCaixa()
+    {
+        return $this->hasMany(LancamentoCaixa::class);
+    }
+
+    public function emprestimos()
+    {
+        return $this->hasMany(Emprestimo::class);
+    }
+
+    // --- Scopes ---------------------------------------------------------
+
+    public function scopeActivos($query)
+    {
+        return $query->where('activo', true);
     }
 }
