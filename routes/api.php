@@ -1,112 +1,51 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CompraController;
+use App\Http\Controllers\Api\EmprestimoController;
+use App\Http\Controllers\Api\MaterialController;
+use App\Http\Controllers\Api\PessoaController;
+use App\Http\Controllers\Api\VendaController;
+use Illuminate\Support\Facades\Route;
 
-use App\Http\Concerns\RespostaApi;
-use App\Http\Controllers\Controller;
-use App\Http\Requests\MaterialRequest;
-use App\Http\Requests\StockInicialRequest;
-use App\Http\Resources\MaterialResource;
-use App\Models\Material;
-use App\Services\StockService;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+/*
+|--------------------------------------------------------------------------
+| Rotas da API — EcoManage
+|--------------------------------------------------------------------------
+| Prefixo /api automatico. Rotas publicas em cima; abaixo, tudo o que
+| exige token Sanctum (auth:sanctum).
+*/
 
-/**
- * CRUD de materiais e stock (Modulo 3, RF-11 a RF-15).
- *
- * O CRUD e' simples como o das pessoas. O extra e' o endpoint de stock
- * inicial, que usa o StockService para dar entrada do material que ja
- * existia em armazem quando o sistema arrancou.
- */
-class MaterialController extends Controller
-{
-    use RespostaApi;
+// --- Publicas ---------------------------------------------------------
 
-    public function index(Request $request): JsonResponse
-    {
-        $query = Material::query();
+Route::post('/login', [AuthController::class, 'login']);
 
-        if (! $request->boolean('incluir_inactivos')) {
-            $query->where('activo', true);
-        }
+// --- Protegidas (exigem token) ----------------------------------------
 
-        if ($request->filled('pesquisa')) {
-            $termo = $request->string('pesquisa');
-            $query->where('nome', 'like', "%{$termo}%");
-        }
+Route::middleware('auth:sanctum')->group(function () {
 
-        // ?em_alerta=1 mostra so os materiais prontos a vender (RF-15)
-        if ($request->boolean('em_alerta')) {
-            $query->whereNotNull('limite_alerta_kg')
-                ->whereColumn('stock_kg', '>=', 'limite_alerta_kg');
-        }
+    // Autenticacao
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
 
-        $materiais = $query->orderBy('nome')->get();
+    // Pessoas (RF-31, RF-32)
+    Route::apiResource('pessoas', PessoaController::class);
 
-        // Totais uteis para o painel: valor total do stock (RF-14)
-        $valorStockTotal = $materiais->sum(
-            fn ($m) => (float) $m->stock_kg * (float) $m->custo_medio_kg
-        );
+    // Materiais e stock (RF-11 a RF-15)
+    Route::post('materiais/{material}/stock-inicial', [MaterialController::class, 'stockInicial']);
+    Route::apiResource('materiais', MaterialController::class);
 
-        return $this->ok([
-            'itens' => MaterialResource::collection($materiais),
-            'resumo' => [
-                'total_materiais' => $materiais->count(),
-                'valor_stock_total' => round($valorStockTotal, 2),
-            ],
-        ]);
-    }
+    // Compras (RF-16 a RF-18)
+    Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
 
-    public function show(Material $material): JsonResponse
-    {
-        return $this->ok(new MaterialResource($material));
-    }
+    // Vendas (RF-19 a RF-21)
+    Route::post('vendas/{venda}/receber', [VendaController::class, 'receber']);
+    Route::apiResource('vendas', VendaController::class)->only(['index', 'show', 'store']);
 
-    public function store(MaterialRequest $request): JsonResponse
-    {
-        $material = Material::create($request->validated());
+    // Emprestimos e pagamentos (RF-22 a RF-30)
+    Route::post('emprestimos/{emprestimo}/pagar', [EmprestimoController::class, 'pagar']);
+    Route::apiResource('emprestimos', EmprestimoController::class)->only(['index', 'show', 'store']);
 
-        return $this->criado(new MaterialResource($material), 'Material criado com sucesso.');
-    }
+    // (Proximos: caixa, despesas, dre.)
 
-    public function update(MaterialRequest $request, Material $material): JsonResponse
-    {
-        $material->update($request->validated());
-
-        return $this->ok(new MaterialResource($material), 'Material actualizado com sucesso.');
-    }
-
-    public function destroy(Material $material): JsonResponse
-    {
-        $material->update(['activo' => false]);
-
-        return $this->ok(null, 'Material desactivado com sucesso.');
-    }
-
-    /**
-     * Declara o stock inicial de um material (o que ja existia em armazem
-     * antes do sistema). Da entrada via StockService, que calcula o custo
-     * medio — a base para o lucro das primeiras vendas ser correcto.
-     */
-    public function stockInicial(StockInicialRequest $request, Material $material, StockService $stock): JsonResponse
-    {
-        $dados = $request->validated();
-
-        $stock->entrada(
-            material: $material,
-            quantidadeKg: (float) $dados['quantidade_kg'],
-            custoKg: (float) $dados['custo_kg'],
-            origemTipo: 'StockInicial',
-            origemId: null,
-            userId: $request->user()->id,
-            data: $dados['data'] ?? now()->toDateString(),
-            observacoes: 'Stock inicial declarado',
-        );
-
-        return $this->ok(
-            new MaterialResource($material->fresh()),
-            'Stock inicial registado com sucesso.'
-        );
-    }
-}
+});
