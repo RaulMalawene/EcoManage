@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CaixaController;
 use App\Http\Controllers\Api\CompraController;
+use App\Http\Controllers\Api\DespesaController;
 use App\Http\Controllers\Api\EmprestimoController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\PessoaController;
@@ -47,11 +48,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('emprestimos/{emprestimo}/pagar', [EmprestimoController::class, 'pagar']);
     Route::apiResource('emprestimos', EmprestimoController::class)->only(['index', 'show', 'store']);
 
+    // Despesas (RF-06)
+    Route::apiResource('despesas', DespesaController::class)->only(['index', 'show', 'store']);
+
     // Caixa (RF-05 a RF-10) — SO LEITURA
     Route::get('caixa', [CaixaController::class, 'index']);
     Route::get('caixa/saldo', [CaixaController::class, 'saldo']);
     Route::get('caixa/fluxo', [CaixaController::class, 'fluxo']);
 
-    // (Proximos: despesas, dre.)
+    // (Proximo: dre.)
 
 });
