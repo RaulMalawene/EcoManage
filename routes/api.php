@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DespesaController;
 use App\Http\Controllers\Api\EmprestimoController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\PessoaController;
+use App\Http\Controllers\Api\RelatorioController;
 use App\Http\Controllers\Api\VendaController;
 use Illuminate\Support\Facades\Route;
 
@@ -56,6 +57,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('caixa/saldo', [CaixaController::class, 'saldo']);
     Route::get('caixa/fluxo', [CaixaController::class, 'fluxo']);
 
-    // (Proximo: dre.)
+    // Relatorios — DRE e dashboard (Modulo 11)
+    Route::get('relatorios/dre', [RelatorioController::class, 'dre']);
+    Route::get('relatorios/dashboard', [RelatorioController::class, 'dashboard']);
 
 });
