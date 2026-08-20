@@ -72,6 +72,26 @@ class CaixaService
     }
 
     /**
+     * Resumo de um periodo para o relatorio de fluxo de caixa: total que
+     * entrou, total que saiu, e a diferenca. E' o relatorio 1 pedido pelo
+     * cliente ("dinheiro que entrou e saiu").
+     */
+    public function resumoPeriodo($inicio, $fim): array
+    {
+        $entradas = (float) LancamentoCaixa::entradas()
+            ->whereBetween('data', [$inicio, $fim])->sum('valor');
+
+        $saidas = (float) LancamentoCaixa::saidas()
+            ->whereBetween('data', [$inicio, $fim])->sum('valor');
+
+        return [
+            'entradas' => round($entradas, 2),
+            'saidas' => round($saidas, 2),
+            'saldo_periodo' => round($entradas - $saidas, 2),
+        ];
+    }
+
+    /**
      * Recalcula saldo_apos de todos os lancamentos, por ordem cronologica.
      * Necessario depois de anular ou editar um movimento antigo (RF-08),
      * porque todos os saldos seguintes ficam desactualizados.
