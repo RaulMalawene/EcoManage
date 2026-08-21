@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
@@ -20,6 +21,8 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
+    use RespostaApi;
+
     public function login(LoginRequest $request): JsonResponse
     {
         $dados = $request->validated();
@@ -54,9 +57,15 @@ class AuthController extends Controller
     /** Termina a sessao: apaga o token usado neste pedido. */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        // Guarda o utilizador antes de apagar o token: depois do delete()
+        // o token deixa de ser valido, e $request->user() pode voltar a
+        // resolver para null se for chamado de novo mais tarde no mesmo
+        // pedido (ex.: middleware "terminate" ou logging).
+        $user = $request->user();
 
-        return response()->json(['mensagem' => 'Sessao terminada.']);
+        $user->currentAccessToken()->delete();
+
+        return $this->ok(null, 'Sessao terminada.');
     }
 
     /** Dados do utilizador autenticado — util para a app saber quem entrou. */

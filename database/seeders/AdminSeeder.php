@@ -20,7 +20,7 @@ class AdminSeeder extends Seeder
             ['username' => 'admin'],           // nao duplica se ja existir
             [
                 'name' => 'Administrador',
-                'email' => null,
+                'email' => 'admin@lgmail.com',
                 'password' => 'password',       // o cast 'hashed' cifra automaticamente
                 'perfil' => 'administrador',
                 'activo' => true,

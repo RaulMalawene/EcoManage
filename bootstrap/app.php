@@ -18,7 +18,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // API pura: nao ha nenhuma rota web chamada "login". Por omissao o
+        // Laravel regista redirectGuestsTo(route('login')), o que faz o
+        // Authenticate::redirectTo() rebentar com RouteNotFoundException
+        // sempre que um pedido sem token chega a uma rota protegida (o
+        // AuthenticationException so leva redirectTo=null quando o pedido
+        // ja "expectsJson()", e o curl/apps moveis nem sempre mandam
+        // Accept: application/json). Sem alvo de redirecionamento, o
+        // AuthenticationException segue sempre para o render() de baixo,
+        // que devolve 401 em JSON.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Todos os erros das rotas /api/* saem no formato consistente
