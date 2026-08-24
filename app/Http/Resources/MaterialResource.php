@@ -15,6 +15,7 @@ class MaterialResource extends JsonResource
             'preco_compra_kg' => (float) $this->preco_compra_kg,
             'preco_venda_kg' => (float) $this->preco_venda_kg,
             'stock_kg' => (float) $this->stock_kg,
+            'total_quebras_kg' => (float) $this->total_quebras_kg,
             'custo_medio_kg' => (float) $this->custo_medio_kg,
             'limite_alerta_kg' => $this->limite_alerta_kg !== null ? (float) $this->limite_alerta_kg : null,
 

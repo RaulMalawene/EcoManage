@@ -36,6 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Materiais e stock (RF-11 a RF-15)
     Route::post('materiais/{material}/stock-inicial', [MaterialController::class, 'stockInicial']);
+    Route::post('materiais/{material}/quebra', [MaterialController::class, 'quebra']);
+    Route::get('materiais/{material}/quebras', [MaterialController::class, 'quebras']);
     Route::apiResource('materiais', MaterialController::class);
 
     // Compras (RF-16 a RF-18)

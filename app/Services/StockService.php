@@ -139,4 +139,37 @@ class StockService
             ]);
         });
     }
+
+    /**
+     * Quebra de stock: kg perdidos (humidade, danos, manuseamento, etc.)
+     * que saem do armazem sem terem sido vendidos. E' uma saida como
+     * outra qualquer — reduz stock_kg e nao mexe no custo medio — mas
+     * fica marcada com origem "Quebra" (para nao entrar como receita
+     * nos relatorios) e soma-se a materiais.total_quebras_kg, para o
+     * dono ver de relance quanto cada material tem perdido.
+     */
+    public function quebra(
+        Material $material,
+        float $quantidadeKg,
+        int $userId,
+        $data = null,
+        ?string $observacoes = null,
+    ): MovimentoStock {
+        return DB::transaction(function () use ($material, $quantidadeKg, $userId, $data, $observacoes) {
+            $movimento = $this->saida(
+                material: $material,
+                quantidadeKg: $quantidadeKg,
+                origemTipo: 'Quebra',
+                origemId: null,
+                userId: $userId,
+                data: $data,
+                observacoes: $observacoes ?? 'Quebra de stock',
+            );
+
+            Material::whereKey($material->id)
+                ->increment('total_quebras_kg', round($quantidadeKg, 3));
+
+            return $movimento;
+        });
+    }
 }

@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MaterialRequest;
+use App\Http\Requests\QuebraRequest;
 use App\Http\Requests\StockInicialRequest;
 use App\Http\Resources\MaterialResource;
+use App\Http\Resources\MovimentoStockResource;
 use App\Models\Material;
+use App\Models\MovimentoStock;
 use App\Services\StockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -108,5 +111,80 @@ class MaterialController extends Controller
             new MaterialResource($material->fresh()),
             'Stock inicial registado com sucesso.'
         );
+    }
+
+    /**
+     * Regista uma quebra de stock (humidade, danos, manuseamento, etc.):
+     * kg que saem do armazem sem terem sido vendidos. Reduz o stock do
+     * material e soma ao acumulado de quebras — nao entra como receita
+     * nos relatorios.
+     */
+    public function quebra(QuebraRequest $request, Material $material, StockService $stock): JsonResponse
+    {
+        $dados = $request->validated();
+
+        $movimento = $stock->quebra(
+            material: $material,
+            quantidadeKg: (float) $dados['quantidade_kg'],
+            userId: $request->user()->id,
+            data: $dados['data'] ?? now()->toDateString(),
+            observacoes: $dados['motivo'] ?? null,
+        );
+
+        return $this->ok([
+            'material' => new MaterialResource($material->fresh()),
+            'movimento' => [
+                'id' => $movimento->id,
+                'quantidade_kg' => (float) $movimento->quantidade_kg,
+                'stock_apos_kg' => (float) $movimento->stock_apos_kg,
+                'data' => $movimento->data->toDateString(),
+            ],
+        ], 'Quebra registada com sucesso.');
+    }
+
+    /**
+     * Historico de quebras deste material (relatorio): so leitura,
+     * cada linha e' um movimento de stock com origem "Quebra". Aceita
+     * filtro por periodo, tal como o extracto do caixa.
+     */
+    public function quebras(Request $request, Material $material): JsonResponse
+    {
+        $query = MovimentoStock::with('user')
+            ->doMaterial($material->id)
+            ->where('origem_tipo', 'Quebra')
+            ->cronologico();
+
+        if ($request->filled('data_inicio') && $request->filled('data_fim')) {
+            $query->whereBetween('data', [
+                $request->date('data_inicio'),
+                $request->date('data_fim'),
+            ]);
+        }
+
+        // Totais do periodo filtrado (nao do historico completo).
+        $totais = (clone $query)->get();
+        $quantidadeTotalKg = (float) $totais->sum('quantidade_kg');
+        $valorTotal = $totais->sum(fn ($m) => (float) $m->quantidade_kg * (float) $m->custo_kg);
+
+        $movimentos = $query->paginate(30);
+
+        return $this->ok([
+            'material' => [
+                'id' => $material->id,
+                'nome' => $material->nome,
+                'total_quebras_kg' => (float) $material->total_quebras_kg,
+            ],
+            'itens' => MovimentoStockResource::collection($movimentos),
+            'resumo_periodo' => [
+                'quantidade_total_kg' => round($quantidadeTotalKg, 3),
+                'valor_total' => round($valorTotal, 2),
+            ],
+            'paginacao' => [
+                'total' => $movimentos->total(),
+                'pagina' => $movimentos->currentPage(),
+                'por_pagina' => $movimentos->perPage(),
+                'ultima_pagina' => $movimentos->lastPage(),
+            ],
+        ]);
     }
 }

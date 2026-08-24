@@ -22,8 +22,8 @@ class Material extends Model
         'activo',
     ];
 
-    // custo_medio_kg fica de fora do fillable de proposito:
-    // so o servico de stock o deve alterar.
+    // custo_medio_kg e total_quebras_kg ficam de fora do fillable de
+    // proposito: so o StockService lhes deve mexer.
 
     protected function casts(): array
     {
@@ -33,6 +33,7 @@ class Material extends Model
             'stock_kg' => 'decimal:3',
             'limite_alerta_kg' => 'decimal:3',
             'custo_medio_kg' => 'decimal:4',
+            'total_quebras_kg' => 'decimal:3',
             'activo' => 'boolean',
         ];
     }
