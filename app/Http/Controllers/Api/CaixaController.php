@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Concerns\FormataMeses;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LancamentoCaixaResource;
@@ -19,7 +20,7 @@ use Illuminate\Http\Request;
  */
 class CaixaController extends Controller
 {
-    use RespostaApi;
+    use RespostaApi, FormataMeses;
 
     /**
      * Extracto: lista de movimentos, cada um com o saldo corrente.
@@ -86,5 +87,34 @@ class CaixaController extends Controller
             'saldo_periodo' => $resumo['saldo_periodo'],
             'saldo_actual' => $caixa->saldoActual(),
         ]);
+    }
+
+    /**
+     * Fluxo de caixa mes a mes, para o grafico de evolucao no frontend.
+     * So chama CaixaService::resumoPeriodo() num loop, um mes de cada
+     * vez — nenhum calculo novo aqui (mais antigo primeiro, incluindo
+     * o mes corrente).
+     */
+    public function fluxoMensal(Request $request, CaixaService $caixa): JsonResponse
+    {
+        $meses = max(1, $request->integer('meses', 6));
+
+        $resultado = [];
+
+        for ($i = $meses - 1; $i >= 0; $i--) {
+            $mes = now()->subMonths($i);
+
+            $resumo = $caixa->resumoPeriodo($mes->copy()->startOfMonth(), $mes->copy()->endOfMonth());
+
+            $resultado[] = [
+                'mes' => $mes->format('Y-m'),
+                'mes_rotulo' => $this->mesRotulo($mes),
+                'entradas' => $resumo['entradas'],
+                'saidas' => $resumo['saidas'],
+                'saldo_periodo' => $resumo['saldo_periodo'],
+            ];
+        }
+
+        return $this->ok($resultado);
     }
 }

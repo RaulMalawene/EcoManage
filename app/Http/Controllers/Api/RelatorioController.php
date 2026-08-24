@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Concerns\FormataMeses;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Models\Emprestimo;
@@ -17,7 +18,7 @@ use Illuminate\Http\Request;
  */
 class RelatorioController extends Controller
 {
-    use RespostaApi;
+    use RespostaApi, FormataMeses;
 
     /**
      * DRE de um periodo (Modulo 11). Se nao vierem datas, usa o mes
@@ -66,5 +67,30 @@ class RelatorioController extends Controller
                 'margem_liquida_pct' => $dreMes['margem_liquida_pct'],
             ],
         ]);
+    }
+
+    /**
+     * DRE mes a mes, para o grafico de evolucao no frontend. So chama
+     * DreService::calcular() num loop, um mes de cada vez — nenhum
+     * calculo novo aqui, so a soma dos meses corridos (mais antigo
+     * primeiro, incluindo o mes corrente).
+     */
+    public function dreMensal(Request $request, DreService $dre): JsonResponse
+    {
+        $meses = max(1, $request->integer('meses', 6));
+
+        $resultado = [];
+
+        for ($i = $meses - 1; $i >= 0; $i--) {
+            $mes = now()->subMonths($i);
+
+            $linha = $dre->calcular($mes->copy()->startOfMonth(), $mes->copy()->endOfMonth());
+            $linha['mes'] = $mes->format('Y-m');
+            $linha['mes_rotulo'] = $this->mesRotulo($mes);
+
+            $resultado[] = $linha;
+        }
+
+        return $this->ok($resultado);
     }
 }

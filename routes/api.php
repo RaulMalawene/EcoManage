@@ -62,9 +62,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('caixa', [CaixaController::class, 'index']);
     Route::get('caixa/saldo', [CaixaController::class, 'saldo']);
     Route::get('caixa/fluxo', [CaixaController::class, 'fluxo']);
+    Route::get('caixa/fluxo-mensal', [CaixaController::class, 'fluxoMensal']);
 
     // Relatorios — DRE e dashboard (Modulo 11)
     Route::get('relatorios/dre', [RelatorioController::class, 'dre']);
+    Route::get('relatorios/dre-mensal', [RelatorioController::class, 'dreMensal']);
     Route::get('relatorios/dashboard', [RelatorioController::class, 'dashboard']);
 
 });
