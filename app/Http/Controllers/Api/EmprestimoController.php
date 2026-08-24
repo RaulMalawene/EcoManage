@@ -25,7 +25,7 @@ class EmprestimoController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Emprestimo::with('pessoa');
+        $query = Emprestimo::with(['pessoa', 'material']);
 
         if ($request->filled('pessoa_id')) {
             $query->where('pessoa_id', $request->integer('pessoa_id'));
@@ -62,7 +62,7 @@ class EmprestimoController extends Controller
 
     public function show(Emprestimo $emprestimo): JsonResponse
     {
-        $emprestimo->load(['pessoa', 'pagamentos.material']);
+        $emprestimo->load(['pessoa', 'material', 'pagamentos.material']);
 
         return $this->ok(new EmprestimoResource($emprestimo));
     }
@@ -72,7 +72,7 @@ class EmprestimoController extends Controller
         $emprestimo = $servico->registar($request->validated(), $request->user()->id);
 
         return $this->criado(
-            new EmprestimoResource($emprestimo->load('pessoa')),
+            new EmprestimoResource($emprestimo),
             'Emprestimo registado com sucesso.'
         );
     }
@@ -83,7 +83,7 @@ class EmprestimoController extends Controller
         $servico->registarPagamento($emprestimo, $request->validated(), $request->user()->id);
 
         return $this->criado(
-            new EmprestimoResource($emprestimo->fresh()->load(['pessoa', 'pagamentos.material'])),
+            new EmprestimoResource($emprestimo->fresh()->load(['pessoa', 'material', 'pagamentos.material'])),
             'Pagamento registado com sucesso.'
         );
     }

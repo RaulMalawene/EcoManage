@@ -30,6 +30,11 @@ use Illuminate\Support\Facades\DB;
  * sai como dinheiro mas pode ser pago em material; a forma de cada
  * pagamento e' independente do tipo do emprestimo, deixando espaco
  * para pagamentos mistos (parte dinheiro, parte material).
+ *
+ * Ja um emprestimo em material (tipo = material_emprestado) e' material
+ * a sair fisicamente do armazem: nao mexe no caixa, reduz o stock do
+ * material escolhido via StockService — tal como um pagamento recebido
+ * em material faz o inverso (entrada no stock, RF-24).
  */
 class EmprestimoService
 {
@@ -43,7 +48,9 @@ class EmprestimoService
      *
      * @param array $dados [
      *   'pessoa_id'=>, 'valor_principal'=>, 'juro_valor'=>?, 'data'=>?,
-     *   'data_vencimento'=>?, 'motivo'=>?, 'tipo'=>? (dinheiro|adiantamento_material)
+     *   'data_vencimento'=>?, 'motivo'=>?,
+     *   'tipo'=>? (dinheiro|adiantamento_material|material_emprestado),
+     *   'material_id'=>?, 'quantidade_kg'=>?   (quando tipo = material_emprestado)
      * ]
      */
     public function registar(array $dados, int $userId): Emprestimo
@@ -58,10 +65,21 @@ class EmprestimoService
             throw new RegraNegocioException('O juro nao pode ser negativo.');
         }
 
-        return DB::transaction(function () use ($dados, $principal, $juro, $userId) {
+        $tipo = TipoEmprestimo::from($dados['tipo'] ?? TipoEmprestimo::Dinheiro->value);
+
+        // Emprestimo em material exige saber qual e quantos kg — validado
+        // aqui tambem (nao so no FormRequest) porque o servico e' reutilizavel.
+        if ($tipo->saiDoStock() && (empty($dados['material_id']) || empty($dados['quantidade_kg']))) {
+            throw new RegraNegocioException(
+                'Emprestimo em material exige o material e a quantidade em kg.'
+            );
+        }
+
+        return DB::transaction(function () use ($dados, $principal, $juro, $tipo, $userId) {
             $total = round($principal + $juro, 2);
             $data = $dados['data'] ?? now()->toDateString();
-            $tipo = $dados['tipo'] ?? TipoEmprestimo::Dinheiro->value;
+            $materialId = $tipo->saiDoStock() ? $dados['material_id'] : null;
+            $quantidadeKg = $tipo->saiDoStock() ? round((float) $dados['quantidade_kg'], 3) : null;
 
             $emprestimo = Emprestimo::create([
                 'pessoa_id' => $dados['pessoa_id'],
@@ -73,25 +91,41 @@ class EmprestimoService
                 'data_vencimento' => $dados['data_vencimento'] ?? null,
                 'motivo' => $dados['motivo'] ?? null,
                 'tipo' => $tipo,
+                'material_id' => $materialId,
+                'quantidade_kg' => $quantidadeKg,
                 'estado' => EstadoEmprestimo::EmDia,
                 'user_id' => $userId,
             ]);
 
-            // Conceder um emprestimo faz SAIR dinheiro do caixa (RF-30).
-            // Sai so o principal — o juro ainda nao existe, e' expectativa.
-            $this->caixa->registar(
-                tipo: TipoLancamento::Saida,
-                categoria: CategoriaLancamento::Emprestimo,
-                valor: round($principal, 2),
-                descricao: 'Emprestimo concedido',
-                userId: $userId,
-                data: $data,
-                pessoaId: $emprestimo->pessoa_id,
-                origemTipo: 'Emprestimo',
-                origemId: $emprestimo->id,
-            );
+            if ($tipo->saiDoStock()) {
+                // Material emprestado: sai fisicamente do armazem. Nao ha
+                // dinheiro a mexer no caixa — a "saida" e' este material.
+                $this->stock->saida(
+                    material: Material::findOrFail($materialId),
+                    quantidadeKg: $quantidadeKg,
+                    origemTipo: 'Emprestimo',
+                    origemId: $emprestimo->id,
+                    userId: $userId,
+                    data: $data,
+                    observacoes: 'Emprestimo concedido em material',
+                );
+            } else {
+                // Dinheiro/adiantamento: sai do caixa como antes (RF-30).
+                // Sai so o principal — o juro ainda nao existe, e' expectativa.
+                $this->caixa->registar(
+                    tipo: TipoLancamento::Saida,
+                    categoria: CategoriaLancamento::Emprestimo,
+                    valor: round($principal, 2),
+                    descricao: 'Emprestimo concedido',
+                    userId: $userId,
+                    data: $data,
+                    pessoaId: $emprestimo->pessoa_id,
+                    origemTipo: 'Emprestimo',
+                    origemId: $emprestimo->id,
+                );
+            }
 
-            return $emprestimo->load('pessoa');
+            return $emprestimo->load(['pessoa', 'material']);
         });
     }
 

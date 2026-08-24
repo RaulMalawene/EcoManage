@@ -24,6 +24,13 @@ class EmprestimoResource extends JsonResource
             'data_vencimento' => $this->data_vencimento?->toDateString(),
             'motivo' => $this->motivo,
             'tipo' => $this->tipo->value,
+            'tipo_rotulo' => $this->tipo->rotulo(),
+
+            // Preenchidos so quando tipo = material_emprestado.
+            'material_id' => $this->material_id,
+            'material' => $this->whenLoaded('material', fn () => $this->material?->nome),
+            'quantidade_kg' => $this->quantidade_kg !== null ? (float) $this->quantidade_kg : null,
+
             'estado' => $this->estado->value,
             'estado_rotulo' => $this->estado->rotulo(),
 

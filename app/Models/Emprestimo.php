@@ -24,6 +24,8 @@ class Emprestimo extends Model
         'data_vencimento',
         'motivo',
         'tipo',
+        'material_id',
+        'quantidade_kg',
         'estado',
         'user_id',
     ];
@@ -43,6 +45,7 @@ class Emprestimo extends Model
             'valor_total' => 'decimal:2',
             'saldo_devedor' => 'decimal:2',
             'tipo' => TipoEmprestimo::class,
+            'quantidade_kg' => 'decimal:3',
             'estado' => EstadoEmprestimo::class,
         ];
     }
@@ -52,6 +55,12 @@ class Emprestimo extends Model
     public function pessoa()
     {
         return $this->belongsTo(Pessoa::class);
+    }
+
+    /** Material emprestado, quando tipo = material_emprestado. */
+    public function material()
+    {
+        return $this->belongsTo(Material::class);
     }
 
     public function pagamentos()

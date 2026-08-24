@@ -38,7 +38,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('materiais/{material}/stock-inicial', [MaterialController::class, 'stockInicial']);
     Route::post('materiais/{material}/quebra', [MaterialController::class, 'quebra']);
     Route::get('materiais/{material}/quebras', [MaterialController::class, 'quebras']);
-    Route::apiResource('materiais', MaterialController::class);
+    // Sem ->parameters(), o Laravel tentava singularizar "materiais" (regras
+    // de ingles) para "materiai" em vez de "material", e o show/update/destroy
+    // nunca faziam bind ao modelo certo — devolviam sempre um registo vazio.
+    Route::apiResource('materiais', MaterialController::class)
+        ->parameters(['materiais' => 'material']);
 
     // Compras (RF-16 a RF-18)
     Route::apiResource('compras', CompraController::class)->only(['index', 'show', 'store']);
