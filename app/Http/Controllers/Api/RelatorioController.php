@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Concerns\FormataMeses;
+use App\Http\Concerns\FormataPeriodo;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Models\Emprestimo;
 use App\Models\Material;
 use App\Services\CaixaService;
 use App\Services\DreService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Relatorios: DRE (lucro real) e dashboard (visao geral do negocio).
@@ -18,7 +21,7 @@ use Illuminate\Http\Request;
  */
 class RelatorioController extends Controller
 {
-    use RespostaApi, FormataMeses;
+    use RespostaApi, FormataMeses, FormataPeriodo;
 
     /**
      * DRE de um periodo (Modulo 11). Se nao vierem datas, usa o mes
@@ -92,5 +95,26 @@ class RelatorioController extends Controller
         }
 
         return $this->ok($resultado);
+    }
+
+    /**
+     * Exporta o DRE de um periodo em PDF: a mesma cascata do grafico do
+     * frontend (Receita -> Custo -> Lucro bruto -> Juros -> Despesas ->
+     * Resultado operacional -> Impostos -> Lucro liquido), directamente
+     * do array que DreService::calcular() ja devolve — nenhum calculo
+     * novo. Mesmo comportamento por omissao que dre(): sem datas, usa o
+     * mes corrente.
+     */
+    public function exportarDre(Request $request, DreService $dre): Response
+    {
+        $inicio = $request->date('data_inicio') ?? now()->startOfMonth();
+        $fim = $request->date('data_fim') ?? now()->endOfMonth();
+
+        $resultado = $dre->calcular($inicio, $fim);
+
+        return Pdf::loadView('pdf.dre', [
+            'dre' => $resultado,
+            'periodoTexto' => $inicio->format('d/m/Y') . ' a ' . $fim->format('d/m/Y'),
+        ])->download('dre-' . now()->format('Y-m-d') . '.pdf');
     }
 }

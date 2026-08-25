@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Concerns\FormataPeriodo;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VendaRequest;
 use App\Http\Resources\VendaResource;
 use App\Models\Venda;
 use App\Services\VendaService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Registo e consulta de vendas (Modulo 5, RF-19 a RF-21).
@@ -23,7 +26,7 @@ use Illuminate\Http\Request;
  */
 class VendaController extends Controller
 {
-    use RespostaApi;
+    use RespostaApi, FormataPeriodo;
 
     public function index(Request $request): JsonResponse
     {
@@ -110,5 +113,42 @@ class VendaController extends Controller
             new VendaResource($venda->load(['pessoa', 'itens.material'])),
             'Recebimento registado com sucesso.'
         );
+    }
+
+    /**
+     * Exporta as vendas em PDF. Mesma construcao de query do index()
+     * (mesmos filtros, mesma ordenacao) — so troca a paginacao por um
+     * limite de seguranca de 1000 linhas e o JSON por um PDF.
+     */
+    public function exportar(Request $request): Response
+    {
+        $query = Venda::with(['pessoa', 'itens.material']);
+
+        if ($request->filled('pessoa_id')) {
+            $query->where('pessoa_id', $request->integer('pessoa_id'));
+        }
+
+        if ($request->filled('data_inicio') && $request->filled('data_fim')) {
+            $query->whereBetween('data', [
+                $request->date('data_inicio'),
+                $request->date('data_fim'),
+            ]);
+        }
+
+        if ($request->boolean('por_receber')) {
+            $query->where('pago', false);
+        }
+
+        $totalReceita = round((float) (clone $query)->sum('total'), 2);
+        $totalLucro = round((float) (clone $query)->sum('lucro'), 2);
+
+        $vendas = $query->orderByDesc('data')->orderByDesc('id')->limit(1000)->get();
+
+        return Pdf::loadView('pdf.vendas', [
+            'vendas' => $vendas,
+            'totalReceita' => $totalReceita,
+            'totalLucro' => $totalLucro,
+            'periodoTexto' => $this->periodoTexto($request),
+        ])->download('vendas-' . now()->format('Y-m-d') . '.pdf');
     }
 }

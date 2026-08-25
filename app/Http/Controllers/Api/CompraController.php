@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Concerns\FormataPeriodo;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CompraRequest;
 use App\Http\Resources\CompraResource;
 use App\Models\Compra;
 use App\Services\CompraService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Registo e consulta de compras (Modulo 4, RF-16 a RF-18).
@@ -23,7 +26,7 @@ use Illuminate\Http\Request;
  */
 class CompraController extends Controller
 {
-    use RespostaApi;
+    use RespostaApi, FormataPeriodo;
 
     public function index(Request $request): JsonResponse
     {
@@ -81,5 +84,36 @@ class CompraController extends Controller
             new CompraResource($compra->load(['pessoa', 'itens.material'])),
             'Compra registada com sucesso.'
         );
+    }
+
+    /**
+     * Exporta as compras em PDF. Mesma construcao de query do index()
+     * (mesmos filtros, mesma ordenacao) — so troca a paginacao por um
+     * limite de seguranca de 1000 linhas e o JSON por um PDF.
+     */
+    public function exportar(Request $request): Response
+    {
+        $query = Compra::with(['pessoa', 'itens.material']);
+
+        if ($request->filled('pessoa_id')) {
+            $query->where('pessoa_id', $request->integer('pessoa_id'));
+        }
+
+        if ($request->filled('data_inicio') && $request->filled('data_fim')) {
+            $query->whereBetween('data', [
+                $request->date('data_inicio'),
+                $request->date('data_fim'),
+            ]);
+        }
+
+        $totalCompras = round((float) (clone $query)->sum('total'), 2);
+
+        $compras = $query->orderByDesc('data')->orderByDesc('id')->limit(1000)->get();
+
+        return Pdf::loadView('pdf.compras', [
+            'compras' => $compras,
+            'totalCompras' => $totalCompras,
+            'periodoTexto' => $this->periodoTexto($request),
+        ])->download('compras-' . now()->format('Y-m-d') . '.pdf');
     }
 }

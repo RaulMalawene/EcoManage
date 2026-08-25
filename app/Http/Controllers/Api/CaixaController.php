@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Concerns\FormataMeses;
+use App\Http\Concerns\FormataPeriodo;
 use App\Http\Concerns\RespostaApi;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LancamentoCaixaResource;
 use App\Models\LancamentoCaixa;
 use App\Services\CaixaService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Consulta do livro-caixa (Modulo 7, RF-05 a RF-10).
@@ -20,7 +23,7 @@ use Illuminate\Http\Request;
  */
 class CaixaController extends Controller
 {
-    use RespostaApi, FormataMeses;
+    use RespostaApi, FormataMeses, FormataPeriodo;
 
     /**
      * Extracto: lista de movimentos, cada um com o saldo corrente.
@@ -116,5 +119,39 @@ class CaixaController extends Controller
         }
 
         return $this->ok($resultado);
+    }
+
+    /**
+     * Exporta o extracto de caixa em PDF. Mesma construcao de query do
+     * index() (mesmos filtros, mesma ordenacao cronologica) mais
+     * saldoActual() — so troca a paginacao por um limite de seguranca
+     * de 1000 linhas e o JSON por um PDF.
+     */
+    public function exportar(Request $request, CaixaService $caixa): Response
+    {
+        $query = LancamentoCaixa::with('pessoa')->cronologico();
+
+        if ($request->filled('data_inicio') && $request->filled('data_fim')) {
+            $query->whereBetween('data', [
+                $request->date('data_inicio'),
+                $request->date('data_fim'),
+            ]);
+        }
+
+        if ($request->filled('tipo')) {
+            $query->where('tipo', $request->string('tipo'));
+        }
+
+        if ($request->filled('categoria')) {
+            $query->where('categoria', $request->string('categoria'));
+        }
+
+        $lancamentos = $query->limit(1000)->get();
+
+        return Pdf::loadView('pdf.caixa', [
+            'lancamentos' => $lancamentos,
+            'saldoActual' => $caixa->saldoActual(),
+            'periodoTexto' => $this->periodoTexto($request),
+        ])->download('caixa-' . now()->format('Y-m-d') . '.pdf');
     }
 }

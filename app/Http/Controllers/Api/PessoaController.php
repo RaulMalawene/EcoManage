@@ -9,6 +9,7 @@ use App\Http\Resources\PessoaResource;
 use App\Models\Pessoa;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * CRUD de pessoas — fornecedores, clientes e devedores (RF-31, RF-32).
@@ -86,5 +87,46 @@ class PessoaController extends Controller
         $pessoa->update(['activo' => false]);
 
         return $this->ok(null, 'Pessoa desactivada com sucesso.');
+    }
+
+    /**
+     * Exporta os contactos em CSV. Mesma construcao de query do index()
+     * (mesmos filtros, mesma ordenacao) — so troca a paginacao por um
+     * limite de seguranca de 1000 linhas e o JSON por um ficheiro CSV
+     * em streaming, sem depender de nenhum pacote extra.
+     */
+    public function exportar(Request $request): StreamedResponse
+    {
+        $query = Pessoa::query();
+
+        if ($request->filled('tipo')) {
+            $query->where('tipo', $request->string('tipo'));
+        }
+
+        if (! $request->boolean('incluir_inactivas')) {
+            $query->where('activo', true);
+        }
+
+        if ($request->filled('pesquisa')) {
+            $termo = $request->string('pesquisa');
+            $query->where('nome', 'like', "%{$termo}%");
+        }
+
+        $pessoas = $query->orderBy('nome')->limit(1000)->get();
+
+        return response()->streamDownload(function () use ($pessoas) {
+            $out = fopen('php://output', 'w');
+
+            // BOM UTF-8: sem isto o Excel mostra os acentos trocados.
+            fwrite($out, "\xEF\xBB\xBF");
+
+            fputcsv($out, ['Nome', 'Tipo', 'Telefone', 'Observacoes', 'Activo']);
+
+            foreach ($pessoas as $p) {
+                fputcsv($out, [$p->nome, $p->tipo->rotulo(), $p->telefone, $p->observacoes, $p->activo ? 'Sim' : 'Nao']);
+            }
+
+            fclose($out);
+        }, 'contactos-' . now()->format('Y-m-d') . '.csv', ['Content-Type' => 'text/csv']);
     }
 }

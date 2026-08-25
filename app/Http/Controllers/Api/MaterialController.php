@@ -12,8 +12,10 @@ use App\Http\Resources\MovimentoStockResource;
 use App\Models\Material;
 use App\Models\MovimentoStock;
 use App\Services\StockService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * CRUD de materiais e stock (Modulo 3, RF-11 a RF-15).
@@ -186,5 +188,43 @@ class MaterialController extends Controller
                 'ultima_pagina' => $movimentos->lastPage(),
             ],
         ]);
+    }
+
+    /**
+     * Exporta os materiais e o stock em PDF. Mesma construcao de query e
+     * o mesmo resumo do index() — que ja nao e' paginado, so troca o
+     * JSON por um PDF.
+     */
+    public function exportar(Request $request): Response
+    {
+        $query = Material::query();
+
+        if (! $request->boolean('incluir_inactivos')) {
+            $query->where('activo', true);
+        }
+
+        if ($request->filled('pesquisa')) {
+            $termo = $request->string('pesquisa');
+            $query->where('nome', 'like', "%{$termo}%");
+        }
+
+        if ($request->boolean('em_alerta')) {
+            $query->whereNotNull('limite_alerta_kg')
+                ->whereColumn('stock_kg', '>=', 'limite_alerta_kg');
+        }
+
+        $materiais = $query->orderBy('nome')->get();
+
+        $valorStockTotal = $materiais->sum(
+            fn ($m) => (float) $m->stock_kg * (float) $m->custo_medio_kg
+        );
+
+        return Pdf::loadView('pdf.materiais', [
+            'materiais' => $materiais,
+            'resumo' => [
+                'total_materiais' => $materiais->count(),
+                'valor_stock_total' => round($valorStockTotal, 2),
+            ],
+        ])->download('materiais-' . now()->format('Y-m-d') . '.pdf');
     }
 }
